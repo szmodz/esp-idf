@@ -228,4 +228,14 @@ void app_main(void)
             xTaskCreate(&https_get_task, "https_get_task", 8192, (void *)&webaddr[j], ESP_TASK_MAIN_PRIO, NULL);
         }
     }
+
+
+    for (;;) {
+        size_t dram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        size_t psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+
+        ESP_LOGW(TAG, "Free memory: %u DRAM %u PSRAM", dram, psram);
+
+        vTaskDelay(configTICK_RATE_HZ);
+    }
 }
