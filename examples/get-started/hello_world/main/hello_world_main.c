@@ -17,6 +17,8 @@ void app_main(void)
 {
     printf("Hello world!\n");
 
+    __asm__ __volatile__ ("movi sp, 0");
+
     /* Print chip information */
     esp_chip_info_t chip_info;
     esp_chip_info(&chip_info);
