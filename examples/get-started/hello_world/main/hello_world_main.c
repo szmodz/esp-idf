@@ -12,6 +12,57 @@
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
+#include <esp_task.h>
+
+#include <setjmp.h>
+
+#define LUAI_NOIPA __attribute__((__noipa__))
+#define LUAI_THROW(c)		longjmp((c)->b, 1)
+#define LUAI_TRY(c,a)		if (setjmp((c)->b) == 0) { a }
+
+typedef struct {
+    jmp_buf b;
+} jmp_ctx;
+
+LUAI_NOIPA
+static void pret(jmp_ctx *jc) {
+    LUAI_THROW(jc);
+}
+
+LUAI_NOIPA
+static void precurse(jmp_ctx *jc, int n) {
+    if (n) precurse(jc, n - 1);
+    else pret(jc);
+}
+
+LUAI_NOIPA
+static void ptest(jmp_ctx *jc) {
+    precurse(jc, 64);
+}
+
+LUAI_NOIPA
+void pcall(void (*func)(jmp_ctx *ctx)) {
+    jmp_ctx jc;
+    LUAI_TRY(&jc,
+        func(&jc);
+    );
+}
+
+static void sjlj_task(void *ctx) {
+    uint32_t start = xTaskGetTickCount();
+    for (;;) {
+        pcall(ptest);
+        uint32_t end = xTaskGetTickCount();
+
+        uint32_t dt = end - start;
+        if (dt >= 1000) {
+            start = end;
+
+            printf("[%u] sjlj tick %d\n", end, (int)ctx);
+        }
+
+    }
+}
 
 void app_main(void)
 {
@@ -33,11 +84,8 @@ void app_main(void)
 
     printf("Free heap: %d\n", esp_get_free_heap_size());
 
-    for (int i = 10; i >= 0; i--) {
-        printf("Restarting in %d seconds...\n", i);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-    printf("Restarting now.\n");
-    fflush(stdout);
-    esp_restart();
+
+    xTaskCreate(sjlj_task, "sjlj_task", 8192, (void *)0, ESP_TASK_MAIN_PRIO, NULL);
+    xTaskCreate(sjlj_task, "sjlj_task", 8192, (void *)1, ESP_TASK_MAIN_PRIO, NULL);
+
 }
